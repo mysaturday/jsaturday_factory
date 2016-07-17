@@ -50,7 +50,7 @@ module.exports = function JSaturdayModule(settings, info){
   return {
     name: this.info.name,
     api: this.api,
-    modules: this.modules,
+    lib: this.lib,
     settings: this.settings
   }
 
