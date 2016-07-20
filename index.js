@@ -8,7 +8,7 @@ module.exports = function(settings){
   return new JSaturday(settings);
 };
 
-function JSaturday(){
+function JSaturday(settings){
   var globalObject = {};
 
   this.get = function(moduleName){
@@ -20,6 +20,10 @@ function JSaturday(){
 
   this.testAdd = function(test){
     globalObject[test] = 1;
+  };
+
+  this.settings = function(){
+    return settings;
   };
 
   this.loadModule = function(info, options){
