@@ -4,12 +4,16 @@ var debug = require('debug')('jsaturday::factory');
 // This is a draft!
 // -----------------------------------------------------------
 
+var maxStackLevel = 5;
+
+
 module.exports = function(settings){
   return new JSaturday(settings);
 };
 
 function JSaturday(settings){
   var globalObject = {};
+  var stackLevel = 1;
 
   this.get = function(moduleName){
     var module = globalObject[moduleName];
@@ -22,19 +26,28 @@ function JSaturday(settings){
     globalObject[test] = 1;
   };
 
+  this.getModules = function(){
+    return Object.keys(globalObject);
+  };  
+
   this.settings = function(){
     return settings;
   };
 
   this.loadModule = function(info, options){
 
-    debug('info', 'Loading module ' + info.name + ' ...');
+    if(stackLevel > maxStackLevel)
+      throw new Error('Max stack level in loading modules. Check for cyclic dependences...')
+
+    debug('info', 'Loading module ' + info.name + ' (stackLevel = ' + stackLevel + ')...');
 
     if(!info.name)
       throw new Error('Missing info.name');
 
-    if(globalObject[info.name])
-      throw new Error('Module already loaded');
+    if(globalObject[info.name]){
+      debug('warning ' + info.name + ' already loaded');
+      return false;
+    }
 
     if(typeof info.dependsOn === 'string')
       info.dependsOn = [info.dependsOn];
@@ -45,8 +58,17 @@ function JSaturday(settings){
     // INFO CHECKS
     for(var i = 0; i < info.dependsOn.length; i++){
       if(!globalObject[ info.dependsOn[i] ]){
-        debug('error',  info.node + ' Missing dependsOn ' + info.dependsOn[i]);
-        throw new Error('Missing dependsOn ' + info.dependsOn[i]);
+
+        stackLevel++;
+        debug('info',  info.name + ' Try to import ' + info.dependsOn[i]);
+
+        var dependentModule = require(info.dependsOn[i]);
+        this.loadModule(dependentModule, options);
+     
+        stackLevel--;        
+      }
+      else{
+        debug('info',  info.name + ' Skip import of' + info.dependsOn[i]);      
       }
     }
 
@@ -61,7 +83,7 @@ function JSaturday(settings){
         // API CHECKS
         // ...
       }catch(err){
-        debug('warning', 'Api not loaded!');
+        debug('verbose', 'Api not loaded!');
       }
 
     if(info.lib)
@@ -70,21 +92,21 @@ function JSaturday(settings){
         // ...
         lib = require(info.lib)(this);
       }catch(err){
-        debug('warning', 'Lib not loaded!');
+        debug('verbose', 'Lib not loaded!');
       }
 
     if(info.settings)
       try{
         settings = require(info.settings)(this);
       }catch(err){
-        debug('warning', 'Settings not loaded!');
+        debug('verbose', 'Settings not loaded!');
       }
 
     if(info.client)
       try{
         client = require(info.client)(this);
       }catch(err){
-        debug('warning', 'Client not loaded!');
+        debug('verbose', 'Client not loaded!');
       }
 
     var commonInterface = {
