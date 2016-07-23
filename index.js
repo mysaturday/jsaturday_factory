@@ -1,4 +1,5 @@
 var debug = require('debug')('jsaturday::factory');
+var extend = require('extend');
 
 // -----------------------------------------------------------
 // This is a draft!
@@ -7,11 +8,11 @@ var debug = require('debug')('jsaturday::factory');
 var maxStackLevel = 5;
 
 
-module.exports = function(settings){
-  return new JSaturday(settings);
+module.exports = function(appSettings){
+  return new JSaturday(appSettings);
 };
 
-function JSaturday(settings){
+function JSaturday(appSettings){
   var globalObject = {};
   var stackLevel = 1;
 
@@ -37,7 +38,7 @@ function JSaturday(settings){
   this.loadModule = function(info, options){
 
     if(stackLevel > maxStackLevel)
-      throw new Error('Max stack level in loading modules. Check for cyclic dependences...')
+      throw new Error('Max stack level in loading modules. Check for cyclic dependences...');
 
     debug('info', 'Loading module ' + info.name + ' (stackLevel = ' + stackLevel + ')...');
 
@@ -55,7 +56,9 @@ function JSaturday(settings){
     if(!info.dependsOn)
       info.dependsOn = [];
 
-    // INFO CHECKS
+    // ---------------------------------------------------------
+    // Dependences
+    // ---------------------------------------------------------
     for(var i = 0; i < info.dependsOn.length; i++){
       if(!globalObject[ info.dependsOn[i] ]){
 
@@ -72,57 +75,49 @@ function JSaturday(settings){
       }
     }
 
-    var api;
-    var modules;
-    var settings;
-    var client;
+    var commonInterface = {};
+    commonInterface.getModule = this.get;
+    commonInterface.name = info.name;
 
-    if(info.api)
-      try{
-        api = require(info.api)(this);
-        // API CHECKS
-        // ...
-      }catch(err){
-        debug('verbose', 'Api not loaded!');
+    // ---------------------------------------------------------
+    // Settings
+    // ---------------------------------------------------------
+    var settings = {};
+    if(info.settings){
+      var allSettings = require(info.settings);
+      // If defined in app settings, overwrite module settings
+      if(appSettings[info.name]){
+        extend(true, allSettings, appSettings[info.name]);
       }
+      // Returns just environment settings
+      var env = process.env.NODE_ENV || 'development';
+      var defaultSettings = allSettings.default || {};
+      var envSettings = allSettings[env] || {};
+      extend(true, defaultSettings, envSettings);
+      settings = defaultSettings;
+    }
+    commonInterface.settings = Object.freeze(settings);
 
+    // ---------------------------------------------------------
+    // Libs
+    // ---------------------------------------------------------
+    var lib = {};
     if(info.lib)
-      try{
-        // LIBs CHECKS
-        // ...
-        lib = require(info.lib)(this);
-      }catch(err){
-        debug('verbose', 'Lib not loaded!');
-      }
+      lib = require(info.lib)(commonInterface);
+    commonInterface.lib = Object.freeze(lib);
 
-    if(info.settings)
-      try{
-        settings = require(info.settings)(this);
-      }catch(err){
-        debug('verbose', 'Settings not loaded!');
-      }
-
-    if(info.client)
-      try{
-        client = require(info.client)(this);
-      }catch(err){
-        debug('verbose', 'Client not loaded!');
-      }
-
-    var commonInterface = {
-      getModule: this.get,
-      name: info.name,
-      api: api,
-      client: client,
-      lib: lib,
-      settings: settings
-    };
+    // ---------------------------------------------------------
+    // Server API
+    // ---------------------------------------------------------
+    var api = {};
+    if(info.api)
+      api = require(info.api)(commonInterface);
+    commonInterface.api = Object.freeze(api);
 
     // Add module to globalObject
     globalObject[info.name] = commonInterface;
 
     debug('info', 'Loaded module ' + info.name + '!\n');
-
     return true;
 
   };

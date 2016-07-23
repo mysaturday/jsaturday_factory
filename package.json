@@ -9,10 +9,11 @@
   "author": "mySatuday.ninja",
   "license": "ISC",
   "dependencies": {
-    "debug": "2.2.0"
+    "debug": "2.2.0",
+    "extend": "^3.0.0"
   },
   "devDependencies": {
     "mocha": "2.5.3",
     "should": "9.0.2"
-  }  
+  }
 }
